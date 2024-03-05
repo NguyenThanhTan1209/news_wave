@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:http/http.dart' as http;
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 
 import '../business_logic/model/article.dart';
 import 'article_detail_page.dart';
@@ -14,16 +17,29 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Article> articles = <Article>[];
+  List<Article> _articles = <Article>[];
+  late StreamSubscription<InternetConnectionStatus> _connectionSubscription;
+  bool hasInternet = false;
+
 
   @override
   void initState() {
     super.initState();
 
+      _connectionSubscription = InternetConnectionChecker().onStatusChange.listen((InternetConnectionStatus status) { 
+      final bool hasInternet = status == InternetConnectionStatus.connected;
+
+      setState(() {
+        this.hasInternet = hasInternet;
+      });
+    });
+
     getWebsiteData();
   }
 
   Future<void> getWebsiteData() async {
+
+
     final Uri url = Uri.parse('https://genk.vn/');
     final http.Response response = await http.get(url);
     final dom.Document html = dom.Document.html(response.body);
@@ -49,7 +65,7 @@ class _HomePageState extends State<HomePage> {
         .toList();
 
     setState(() {
-      articles = List<Article>.generate(
+      _articles = List<Article>.generate(
         titles.length,
         (int index) => Article(
           url: urls[index],
@@ -71,12 +87,12 @@ class _HomePageState extends State<HomePage> {
         ),
         backgroundColor: Colors.blue,
       ),
-      body: ListView.separated(
+      body: hasInternet ? ListView.separated(
         itemBuilder: (BuildContext context, int index) {
           return ListTile(
-            title: Text(articles[index].title),
+            title: Text(_articles[index].title),
             leading: CachedNetworkImage(
-              imageUrl: articles[index].imageUrl,
+              imageUrl: _articles[index].imageUrl,
               progressIndicatorBuilder: (
                 BuildContext context,
                 String url,
@@ -86,13 +102,13 @@ class _HomePageState extends State<HomePage> {
               errorWidget: (BuildContext context, String url, Object error) =>
                   const Icon(Icons.error),
             ),
-            subtitle: Text(articles[index].subTitle),
+            subtitle: Text(_articles[index].subTitle),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute<ArticleDetailPage>(
                   builder: (BuildContext context) =>
-                      ArticleDetailPage(article: articles[index]),
+                      ArticleDetailPage(article: _articles[index]),
                 ),
               );
             },
@@ -101,7 +117,15 @@ class _HomePageState extends State<HomePage> {
         separatorBuilder: (BuildContext context, int index) {
           return const Divider(color: Colors.amber);
         },
-        itemCount: articles.length,
+        itemCount: _articles.length,
+      ) : const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            CircularProgressIndicator(),
+            Text('Kết nối Internet của bạn không ổn định...'),
+          ],
+        ),
       ),
     );
   }
